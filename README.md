@@ -28,9 +28,11 @@ I'd recommend Timothy Budd's book "A Little Smalltalk", although it's quite date
 
 ## Fixes & Updates From Original
 
-Inline syntax has been fixed (modern compilers take issue with functions which are marked `inline` but not marked `static`).
+Inline function syntax has been fixed (modern compilers take issue with functions which are marked `inline` but not marked `static`).
 
-Support for underscores in names has been added with an optional ctype hack.
+Support for underscores in class/method names has been added with an optional ctype hack. The higher-level compiler (in BaseLibrary.smalltalk) now allows underscores by default.
+
+Basic support for embedding PDST in an application has also been added (the `L2_SMALLTALK_EMBEDDED` flag will rename the `main` function to `L2_SMALLTALK_MAIN`, so it can be invoked from an external main function). Replacement ctype functions have also been added as preprocessor macros, and these are also enabled by the `L2_SMALLTALK_EMBEDDED` flag (although you might want to remove these if you're using a stable libc - the system this was embedded in only has a partial libc, so this was just a hack).
 
 ## Missing Parts
 
@@ -40,4 +42,16 @@ Only the virtual machine and standard library are included here. The tests, docu
 
 ## Quick Start
 
-TODO.
+To compile:
+
+    gcc pdst.c -opdst -lm
+
+(Using `-dL2_SMALLTALK_UNDERSCORES` will enable underscores in class/method names. Using `-dL2_SMALLTALK_EMBEDDED` will enable built-in ctype functions and rename `main` to `L2_SMALLTALK_MAIN`.)
+
+To create an initial snapshot:
+
+    ./pdst -c BaseLibrary.smalltalk
+
+To continue running an existing snapshot:
+
+    ./pdst -w snapshot
