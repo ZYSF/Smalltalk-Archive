@@ -1,6 +1,6 @@
 # Smalltalk-Archive
 
-An archival fork of Public Domain Smalltalk (PDST), slightly updated and optionally integrated with [HAL/L2](http://zakfenton.com/projects/hal) (sold separately).
+An archival fork of Public Domain Smalltalk (PDST), slightly updated and optionally integrated with ~~[HAL/L2](http://zakfenton.com/projects/hal) (sold separately)~~ (link dead, product defunct, contact me for more info). The hooks which were added to integrate with my old osdev project may be useful for embedding in other applications though. I also (hopefully) have on a disc somewhere some other variations of this codebase with more extensive changes and better embedding, as well most of an implementation in Java, if anybody is interested (note that none of this is maintained or finished though!).
 
 ## Original Code
 
