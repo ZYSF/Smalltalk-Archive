@@ -156,7 +156,7 @@ class of which a given object is an instance.
 */
 typedef struct {
     word_t   spcct;
-    encPtr class;
+    encPtr classPtr;
 } ot2Ent;
 
 #define otbLob     0
@@ -273,7 +273,7 @@ __INLINE__ void spaceOfPut(encPtr x, word_t v)
 
 __INLINE__ encPtr classOf(encPtr x)
 {
-    return(ob2Tbl[oteIndexOf(x)].class);
+    return(ob2Tbl[oteIndexOf(x)].classPtr);
 }
 
 __INLINE__ void classOfPut(encPtr x, encPtr v)
@@ -282,7 +282,7 @@ __INLINE__ void classOfPut(encPtr x, encPtr v)
     assert(isIndex(v));
 #endif
     isVolatilePut(v, false);
-    ob2Tbl[oteIndexOf(x)].class = v;
+    ob2Tbl[oteIndexOf(x)].classPtr = v;
 }
 
 __INLINE__ word_t countOf(encPtr x)
@@ -386,8 +386,8 @@ void visit(objRef x)
             isMarkedPut(x.ptr, true);
             visit(encPtr_to_objRef(classOf(x.ptr)));
             if (isObjRefs(x.ptr)) {
-                objRef* f = addressOf(x.ptr);
-                objRef* p = ((byte_t*)f) + spaceOf(x.ptr);
+                objRef* f = (objRef*) addressOf(x.ptr);
+                objRef* p = (objRef*) ((byte_t*)f) + spaceOf(x.ptr);
                 while (p != f)
                     visit(*--p);
             }
@@ -471,9 +471,9 @@ addr newStorage(word_t bytes)
 void coldObjectTable(void)
 {
     word_t i;
-    objTbl = calloc(otbDom, sizeof(otbEnt));
+    objTbl = (otbEnt*) calloc(otbDom, sizeof(otbEnt));
     assert(objTbl != NULL);
-    ob2Tbl = calloc(otbDom, sizeof(ot2Ent));
+    ob2Tbl = (ot2Ent*) calloc(otbDom, sizeof(ot2Ent));
     assert(ob2Tbl != NULL);
     for (i = otbLob; i != otbHib; i++) {
         classOfPut(encIndexOf(i), encIndexOf(i + 1));
@@ -484,9 +484,9 @@ void coldObjectTable(void)
 void warmObjectTableOne(void)
 {
     word_t i;
-    objTbl = calloc(otbDom, sizeof(otbEnt));
+    objTbl = (otbEnt*) calloc(otbDom, sizeof(otbEnt));
     assert(objTbl != NULL);
-    ob2Tbl = calloc(otbDom, sizeof(ot2Ent));
+    ob2Tbl = (ot2Ent*) calloc(otbDom, sizeof(ot2Ent));
     assert(ob2Tbl != NULL);
     for (i = otbLob; i != otbHib; i++)
         isAvailPut(encIndexOf(i + 1), true);
@@ -561,7 +561,7 @@ encPtr allocWordObj(word_t n)
     return(ptr);
 }
 
-encPtr allocZStrObj(char* zstr)
+encPtr allocZStrObj(const char* zstr)
 {
     encPtr ptr = newPointer();
     word_t   num = strlen(zstr) + 1;
@@ -571,7 +571,7 @@ encPtr allocZStrObj(char* zstr)
     isObjRefsPut(ptr, false);
     spaceOfPut(ptr, num);
     classOfPut(ptr, nilObj);
-    (void)strcpy(addressOf(ptr), zstr);
+    (void)strcpy((char*) addressOf(ptr), zstr);
     return(ptr);
 }
 
@@ -628,7 +628,7 @@ encPtr binSyms[32];// = {};
 
 #define globalValue(s) nameTableLookup(symbols, s)
 
-void sysError(char*, char*);
+void sysError(const char*, const char*);
 
 encPtr newLink(encPtr key, encPtr value);
 
@@ -644,7 +644,7 @@ void nameTableInsert(encPtr dict, word_t hash, encPtr key, encPtr value)
     table = orefOf(dict, 1).ptr;
 
     if (countOf(table) < 3)
-        sysError("attempt to insert into", "too small name table");
+        sysError((char*)"attempt to insert into", (char*)"too small name table");
     else {
         hash = 3 * (hash % (countOf(table) / 3));
         assert(hash <= countOf(table) - 3);
@@ -690,7 +690,7 @@ encPtr hashEachElement(encPtr dict, word_t hash, int(*fun)(encPtr))
 
     /* now see if table is valid */
     if ((tablesize = countOf(table)) < 3)
-        sysError("system error", "lookup on null table");
+        sysError((char*)"system error", (char*)"lookup on null table");
     else {
         hash = 1 + (3 * (hash % (tablesize / 3)));
         assert(hash <= tablesize - 2);
@@ -700,7 +700,7 @@ encPtr hashEachElement(encPtr dict, word_t hash, int(*fun)(encPtr))
         if (ptrNe(encPtr_to_objRef(key), encPtr_to_objRef(nilObj)) && (*fun) (key))
             return value;
         for (link = *hp; ptrNe(encPtr_to_objRef(link), encPtr_to_objRef(nilObj)); link = *hp) {
-            hp = addressOf(link);
+            hp = (encPtr*) addressOf(link);
             key = *hp++;		/* link at: 1 */
             value = *hp++;		/* link at: 2 */
             if (ptrNe(encPtr_to_objRef(key), encPtr_to_objRef(nilObj)) && (*fun) (key))
@@ -710,10 +710,10 @@ encPtr hashEachElement(encPtr dict, word_t hash, int(*fun)(encPtr))
     return nilObj;
 }
 
-int strHash(char* str)
+int strHash(const char* str)
 {
     int hash;
-    char* p;
+    const char* p;
 
     hash = 0;
     for (p = str; *p; p++)
@@ -731,19 +731,19 @@ word_t symHash(encPtr sym)
     return(oteIndexOf(sym));
 }
 
-char* charBuffer = 0;
+const char* charBuffer = 0;
 encPtr objBuffer = { true,0 };
 
 int strTest(encPtr key)
 {
-    if (addressOf(key) && streq(addressOf(key), charBuffer)) {
+    if (addressOf(key) && streq((char*)addressOf(key), charBuffer)) {
         objBuffer = key;
         return 1;
     }
     return 0;
 }
 
-encPtr globalKey(char* str)
+encPtr globalKey(const char* str)
 {
     charBuffer = str;
     objBuffer = nilObj;
@@ -751,19 +751,19 @@ encPtr globalKey(char* str)
     return objBuffer;
 }
 
-encPtr nameTableLookup(encPtr dict, char* str)
+encPtr nameTableLookup(encPtr dict, const char* str)
 {
     charBuffer = str;
     return hashEachElement(dict, strHash(str), strTest);
 }
 
-char* unStrs[] = {
+const char* unStrs[] = {
   "isNil", "notNil", "value", "new", "class", "size", "basicSize",
   "print", "printString",
   0
 };
 
-char* binStrs[] = {
+const char* binStrs[] = {
   "+", "-", "<", ">", "<=", ">=", "=", "~=", "*", "quo:", "rem:",
   "bitAnd:", "bitXor:", "==", ",", "at:", "basicAt:", "do:", "coerce:",
   "error:", "includesKey:", "isMemberOf:", "new:", "to:", "value:",
@@ -771,7 +771,7 @@ char* binStrs[] = {
   0
 };
 
-encPtr newSymbol(char* str);
+encPtr newSymbol(const char* str);
 
 void initCommonSymbols(void)
 {
@@ -791,11 +791,11 @@ void initCommonSymbols(void)
     for (i = 0; i != 16; i++)
         unSyms[i] = nilObj;
     for (i = 0; unStrs[i]; i++)
-        unSyms[i] = newSymbol(unStrs[i]);
+        unSyms[i] = newSymbol((char*)unStrs[i]);
     for (i = 0; i != 32; i++)
         binSyms[i] = nilObj;
     for (i = 0; binStrs[i]; i++)
-        binSyms[i] = newSymbol(binStrs[i]);
+        binSyms[i] = newSymbol((char*)binStrs[i]);
 }
 
 encPtr arrayClass = { false,1 };	/* the class Array */
@@ -856,7 +856,7 @@ encPtr newChar(int value)
     return (newobj);
 }
 
-encPtr newClass(char* name)
+encPtr newClass(const char* name)
 {
     encPtr newMeta;
     encPtr newInst;
@@ -870,14 +870,14 @@ encPtr newClass(char* name)
     newInst = allocOrefObj(classSize);
     classOfPut(newInst, newMeta);
 
-    metaName = newStorage(strlen(name) + 4 + 1);
+    metaName = (char*) newStorage(strlen(name) + 4 + 1);
     (void)strcpy(metaName, name);
     (void)strcat(metaName, "Meta");
 
     /* now make names */
     nameMeta = newSymbol(metaName);
     orefOfPut(newMeta, nameInClass, encPtr_to_objRef(nameMeta));
-    nameInst = newSymbol(name);
+    nameInst = newSymbol((char*)name);
     orefOfPut(newInst, nameInClass, encPtr_to_objRef(nameInst));
 
     /* now put in global symbols and classes tables */
@@ -946,7 +946,7 @@ encPtr newMethod(void)
     return newObj;
 }
 
-encPtr newString(char* value)
+encPtr newString(const char* value)
 {
     encPtr newObj;
 
@@ -957,7 +957,7 @@ encPtr newString(char* value)
     return (newObj);
 }
 
-encPtr newSymbol(char* str)
+encPtr newSymbol(const char* str)
 {
     encPtr newObj;
 
@@ -996,7 +996,7 @@ char tokenString[4096];// = {};	/* text of current token */
 int tokenInteger = 0;		/* or character */
 double tokenFloat = 0.0;
 
-char* cp = 0;
+const char* cp = 0;
 char cc = 0;
 
 int pushindex = 0;
@@ -1215,7 +1215,7 @@ tokentype nextToken(void)
     return (token);
 }
 
-void lexinit(char* str)
+void lexinit(const char* str)
 {
     pushindex = 0;
     cp = str;
@@ -1255,9 +1255,9 @@ void lexinit(char* str)
 #define OrBranch 10
 #define SendToSuper 11
 
-void sysWarn(char* s1, char* s2);
-void compilWarn(char* selector, char* str1, char* str2);
-void compilError(char* selector, char* str1, char* str2);
+void sysWarn(const char* s1, const char* s2);
+void compilWarn(const char* selector, const char* str1, const char* str2);
+void compilError(const char* selector, const char* str1, const char* str2);
 
 #define codeLimit 256
 #define literalLimit 256
@@ -1287,7 +1287,9 @@ char selector[4096];// = {};
 
 enum blockstatus {
     NotInBlock, InBlock, OptimizedBlock
-} blockstat = NotInBlock;
+};
+
+blockstatus blockstat = NotInBlock;
 
 void setInstanceVariables(encPtr aClass)
 {
@@ -1303,7 +1305,7 @@ void setInstanceVariables(encPtr aClass)
         if (ptrNe(encPtr_to_objRef(vars), encPtr_to_objRef(nilObj))) {
             limit = countOf(vars);
             for (i = 1; i <= limit; i++)
-                instanceName[++instanceTop] = addressOf(orefOf(vars, i).ptr);
+                instanceName[++instanceTop] = (char*) addressOf(orefOf(vars, i).ptr);
         }
     }
 }
@@ -1354,7 +1356,7 @@ void genInteger(int val)
             genLiteral(encVal_to_objRef(encValueOf(val))));
 }
 
-char* glbsyms[] = {
+const char* glbsyms[] = {
   "currentInterpreter", "nil", "true", "false",
   0
 };
@@ -1896,7 +1898,7 @@ void block(void)
                 compilError(selector, "too many temporaries in method", "");
             else {
                 tempsym = newSymbol(tokenString);
-                temporaryName[temporaryTop] = addressOf(tempsym);
+                temporaryName[temporaryTop] = (char*) addressOf(tempsym);
             }
             (void)nextToken();
         }
@@ -1944,7 +1946,7 @@ void temporaries(void)
                 compilError(selector, "too many temporaries in method", "");
             else {
                 tempsym = newSymbol(tokenString);
-                temporaryName[temporaryTop] = addressOf(tempsym);
+                temporaryName[temporaryTop] = (char*) addressOf(tempsym);
             }
             (void)nextToken();
         }
@@ -1968,7 +1970,7 @@ void messagePattern(void)
         if (token != nameconst)
             compilError(selector, "binary message pattern not followed by name", selector);
         argsym = newSymbol(tokenString);
-        argumentName[++argumentTop] = addressOf(argsym);
+        argumentName[++argumentTop] = (char*) addressOf(argsym);
         (void)nextToken();
     }
     else if (token == namecolon) {	/* keyword message pattern */
@@ -1982,7 +1984,7 @@ void messagePattern(void)
             if (++argumentTop > argumentLimit)
                 compilError(selector, "too many arguments in method", "");
             argsym = newSymbol(tokenString);
-            argumentName[argumentTop] = addressOf(argsym);
+            argumentName[argumentTop] = (char*) addressOf(argsym);
             (void)nextToken();
         }
     }
@@ -1990,7 +1992,7 @@ void messagePattern(void)
         compilError(selector, "illegal message selector", tokenString);
 }
 
-bool parse(encPtr method, char* text, bool saveText)
+bool parse(encPtr method, const char* text, bool saveText)
 {
     int i;
     encPtr bytecodes,
@@ -2018,7 +2020,7 @@ bool parse(encPtr method, char* text, bool saveText)
     }
     else {
         bytecodes = newByteArray(codeTop);
-        bp = addressOf(bytecodes);
+        bp = (uint8_t*) addressOf(bytecodes);
         for (i = 0; i < codeTop; i++) {
             bp[i] = codeArray[i];
         }
@@ -2266,9 +2268,9 @@ Called from
 objRef primStringCat(objRef arg[])
 {
     addr src1 = addressOf(arg[0].ptr);
-    word_t len1 = strlen(src1);
+    word_t len1 = strlen((char*) src1);
     addr src2 = addressOf(arg[1].ptr);
-    word_t len2 = strlen(src2);
+    word_t len2 = strlen((char*) src2);
     encPtr ans = allocByteObj(len1 + len2 + 1);
     addr tgt = addressOf(ans);
     (void)memcpy(tgt, src1, len1);
@@ -2322,7 +2324,7 @@ Called from Symbol>>assign:
 objRef primSymbolAssign(objRef arg[])	/*fix*/
 {
     nameTableInsert(
-        symbols, strHash(addressOf(arg[0].ptr)), arg[0].ptr, arg[1].ptr);
+        symbols, strHash((char*) addressOf(arg[0].ptr)), arg[0].ptr, arg[1].ptr);
     return(arg[0]);
 }
 
@@ -2405,12 +2407,12 @@ objRef primByteAtPut(objRef arg[])	/*fix*/
     return(arg[0]);
 }
 
-/*
+
 __INLINE__ word_t min(word_t one, word_t two)
 {
     return(one <= two ? one : two);
 }
-*/
+
 
 /*
 Creates a new String.  The von Neumann space of the new String is
@@ -2431,7 +2433,7 @@ objRef primCopyFromTo(objRef arg[])	/*fix*/
         sysError("non integer index", "copyFromTo");
     {
         addr src = addressOf(arg[0].ptr);
-        word_t len = strlen(src);
+        word_t len = strlen((char*) src);
         int pos1 = intValueOf(arg[1].val);
         int pos2 = intValueOf(arg[2].val);
         int req = pos2 + 1 - pos1;
@@ -2439,7 +2441,7 @@ objRef primCopyFromTo(objRef arg[])	/*fix*/
         encPtr ans;
         addr tgt;
         if (pos1 >= 1 && pos1 <= len && req >= 1)
-            act = min(req, strlen(((byte_t*)src) + (pos1 - 1)));
+            act = min(req, strlen(((char*)src) + (pos1 - 1)));
         else
             act = 0;
         ans = allocByteObj(act + 1);
@@ -2452,7 +2454,7 @@ objRef primCopyFromTo(objRef arg[])	/*fix*/
     }
 }
 
-void flushCache(encPtr messageToSend, encPtr class);
+void flushCache(encPtr messageToSend, encPtr classPtr);
 
 /*
 Kills the cache slot denoted by the receiver and argument.  The receiver
@@ -2471,7 +2473,7 @@ objRef primFlushCache(objRef arg[])
 objRef primParse(objRef arg[])	/*del*/
 {
     setInstanceVariables(arg[0].ptr);
-    if (parse(arg[2].ptr, addressOf(arg[1].ptr), false)) {
+    if (parse(arg[2].ptr, (char*) addressOf(arg[1].ptr), false)) {
         flushCache(orefOf(arg[2].ptr, messageInMethod).ptr, arg[0].ptr);
         return(encPtr_to_objRef(trueObj));
     }
@@ -2798,7 +2800,7 @@ Called from String>>size
 */
 objRef primStringSize(objRef arg[])
 {
-    return encVal_to_objRef(encValueOf(strlen(addressOf(arg[0].ptr))));
+    return encVal_to_objRef(encValueOf(strlen((char*) addressOf(arg[0].ptr))));
 }
 
 /*
@@ -2810,7 +2812,7 @@ Called from
 */
 objRef primStringHash(objRef arg[])
 {
-    return encVal_to_objRef(encValueOf(strHash(addressOf(arg[0].ptr))));
+    return encVal_to_objRef(encValueOf(strHash((char*) addressOf(arg[0].ptr))));
 }
 
 /*
@@ -2822,7 +2824,7 @@ Called from String>>asSymbol
 */
 objRef primAsSymbol(objRef arg[])
 {
-    return encPtr_to_objRef(newSymbol(addressOf(arg[0].ptr)));
+    return encPtr_to_objRef(newSymbol((char*) addressOf(arg[0].ptr)));
 }
 
 /*
@@ -2832,7 +2834,7 @@ Called from Symbol>>value
 */
 objRef primGlobalValue(objRef arg[])
 {
-    return encPtr_to_objRef(globalValue(addressOf(arg[0].ptr)));
+    return encPtr_to_objRef(globalValue((char*) addressOf(arg[0].ptr)));
 }
 
 /*
@@ -2842,7 +2844,7 @@ Called from String>>unixCommand
 */
 objRef primHostCommand(objRef arg[])
 {
-    return encVal_to_objRef(encValueOf(system(addressOf(arg[0].ptr))));
+    return encVal_to_objRef(encValueOf(system((char*) addressOf(arg[0].ptr))));
 }
 
 /*
@@ -3060,7 +3062,7 @@ Called from File>>open
 objRef primFileOpen(objRef arg[])
 {
     int i = intValueOf(arg[0].val);
-    char* p = addressOf(arg[1].ptr);
+    char* p = (char*) addressOf(arg[1].ptr);
     if (streq(p, "stdin"))
         fp[i] = stdin;
     else if (streq(p, "stdout"))
@@ -3068,13 +3070,13 @@ objRef primFileOpen(objRef arg[])
     else if (streq(p, "stderr"))
         fp[i] = stderr;
     else {
-        char* q = addressOf(arg[2].ptr);
+        char* q = (char*) addressOf(arg[2].ptr);
         char* r = strchr(q, 'b');
         encPtr s = { false,1 };
         if (r == NULL) {
             int t = strlen(q);
             s = allocByteObj(t + 2);
-            r = addressOf(s);
+            r = (char*) addressOf(s);
             memcpy(r, q, t);
             *(r + t) = 'b';
             q = r;
@@ -3272,7 +3274,7 @@ objRef primPrintWithoutNL(objRef arg[])
     int i = intValueOf(arg[0].val);
     if (!fp[i])
         return(encPtr_to_objRef(nilObj));
-    (void)fputs(addressOf(arg[1].ptr), fp[i]);
+    (void)fputs((char*) addressOf(arg[1].ptr), fp[i]);
     (void)fflush(fp[i]);
     return(encPtr_to_objRef(nilObj));
 }
@@ -3288,7 +3290,7 @@ objRef primPrintWithNL(objRef arg[])
     int i = intValueOf(arg[0].val);
     if (!fp[i])
         return(encPtr_to_objRef(nilObj));
-    (void)fputs(addressOf(arg[1].ptr), fp[i]);
+    (void)fputs((char*) addressOf(arg[1].ptr), fp[i]);
     (void)fputc('\n', fp[i]);
     return(encPtr_to_objRef(nilObj));
 }
@@ -3432,7 +3434,7 @@ encPtr bwsFiniGet(void)
     encPtr ans = allocByteObj(bwsPos + 1);
     addr tgt = addressOf(ans);
     (void)memcpy(tgt, bwsPtr, bwsPos);
-    //printf("I got '%s'", tgt);
+    printf("I got '%s'", tgt);
     if (ptrEq(encPtr_to_objRef(stringClass), encPtr_to_objRef(nilObj)))	/*fix*/
         stringClass = globalValue("String");
     classOfPut(ans, stringClass);
@@ -3543,7 +3545,7 @@ done:
 objRef L2_SMALLTALK_SPECIAL(objRef arguments[]);
 #define primSpecial L2_SMALLTALK_SPECIAL
 #else
-objRef primSpecial(objRef arguments) {
+objRef primSpecial(objRef* arguments) {
     return encPtr_to_objRef(nilObj);
 }
 #endif
@@ -3746,16 +3748,16 @@ void coldClassDef(encPtr strRef)
     encPtr superStr;
     encPtr classObj;
     int size;
-    lexinit(addressOf(strRef));
+    lexinit((char*) addressOf(strRef));
     superStr = newString(tokenString);
     (void)nextToken();
     (void)nextToken();
     classObj = findClass(tokenString);
-    if (streq(addressOf(superStr), "nil"))
+    if (streq((char*) addressOf(superStr), "nil"))
         size = 0;
     else {
         encPtr superObj;
-        superObj = findClass(addressOf(superStr));
+        superObj = findClass((char*)addressOf(superStr));
         size = intValueOf(orefOf(superObj, sizeInClass).val);
         orefOfPut(classObj, superClassInClass, encPtr_to_objRef(superObj));
         {
@@ -3773,7 +3775,7 @@ void coldClassDef(encPtr strRef)
         encPtr varVec;
         int i;
         instStr = newString(tokenString);
-        lexinit(addressOf(instStr));
+        lexinit((char*)addressOf(instStr));
         instTop = 0;
         while (*tokenString) {
             instVars[instTop++] = newSymbol(tokenString);
@@ -3802,9 +3804,9 @@ void coldMethods(encVal tagRef)
      */
     if (ptrEq(encPtr_to_objRef(strRef = primGetChunk((objRef*)&tagRef).ptr), encPtr_to_objRef(nilObj)))
         return;
-    if (streq(addressOf(strRef), "}"))
+    if (streq((char*)addressOf(strRef), "}"))
         return;
-    lexinit(addressOf(strRef));
+    lexinit((char*)addressOf(strRef));
     classObj = findClass(tokenString);
     setInstanceVariables(classObj);
     /* now find or create a method table */
@@ -3819,11 +3821,11 @@ void coldMethods(encVal tagRef)
     while (ptrNe(encPtr_to_objRef(strRef = primGetChunk((objRef*)&tagRef).ptr), encPtr_to_objRef(nilObj))) {
         encPtr theMethod;
         encPtr selector;
-        if (streq(addressOf(strRef), "}"))
+        if (streq((char*)addressOf(strRef), "}"))
             return;
         /* now we have a method */
         theMethod = newMethod();
-        if (parse(theMethod, addressOf(strRef), true)) {
+        if (parse(theMethod, (char*)addressOf(strRef), true)) {
             orefOfPut(theMethod, methodClassInMethod, encPtr_to_objRef(classObj));
             selector = orefOf(theMethod, messageInMethod).ptr;
             nameTableInsert(methTable, oteIndexOf(selector), selector, theMethod);
@@ -3842,7 +3844,7 @@ void coldFileIn(encVal tagRef)
      * XXX is this actually safe?.
      */
     while (ptrNe(encPtr_to_objRef(strRef = primGetChunk((objRef*)&tagRef).ptr), encPtr_to_objRef(nilObj))) {
-        if (streq(addressOf(strRef), "{"))
+        if (streq((char*)addressOf(strRef), "{"))
             coldMethods(tagRef);
         else
             coldClassDef(strRef);
@@ -4039,10 +4041,10 @@ void fetchLinkageState(execState* es)
         es->tmpb = es->cxtb + linkPointer + 4;
     }
     else {			/* read from context object */
-        es->cxtb = addressOf(es->contextObject);
+        es->cxtb = (objRef*)addressOf(es->contextObject);
         method = orefOf(es->contextObject, methodInContext).ptr;
-        es->argb = addressOf(orefOf(es->contextObject, argumentsInContext).ptr);
-        es->tmpb = addressOf(orefOf(es->contextObject, temporariesInContext).ptr);
+        es->argb = (objRef*)addressOf(orefOf(es->contextObject, argumentsInContext).ptr);
+        es->tmpb = (objRef*)addressOf(orefOf(es->contextObject, temporariesInContext).ptr);
     }
 }
 
@@ -4051,7 +4053,7 @@ __INLINE__ void fetchReceiverState(execState* es)
     es->receiverObject = argumentAt(es, 0);
     if (isIndex(es->receiverObject)) {
         assert(ptrNe(es->receiverObject, encPtr_to_objRef(pointerList)));
-        es->rcvb = addressOf(es->receiverObject.ptr);
+        es->rcvb = (objRef*)addressOf(es->receiverObject.ptr);
     }
     else
         es->rcvb = (objRef*)0;
@@ -4059,7 +4061,7 @@ __INLINE__ void fetchReceiverState(execState* es)
 
 __INLINE__ void fetchMethodState(execState* es)
 {
-    es->litb = addressOf(orefOf(method, literalsInMethod).ptr);
+    es->litb = (objRef*)addressOf(orefOf(method, literalsInMethod).ptr);
     es->bytb = ((byte_t*)addressOf(orefOf(method, bytecodesInMethod).ptr)) - 1;
 }
 
@@ -4202,7 +4204,7 @@ struct {
     encPtr cacheMethod;		/* the method itself */
 } methodCache[cacheSize];// = {};
 
-void flushCache(encPtr messageToSend, encPtr class)
+void flushCache(encPtr messageToSend, encPtr classPtr)
 {
     int i;
     for (i = 0; i != cacheSize; i++)
@@ -4314,7 +4316,7 @@ void pushStateAndEnter(execState* es)
     j = stackInUse(es);
     if ((j + i) > countOf(processStack)) {
         processStack = growProcessStack(j, i);
-        es->psb = addressOf(processStack);
+        es->psb = (objRef*)addressOf(processStack);
         es->pst = (es->psb + j);
         orefOfPut(es->processObject, stackInProcess, encPtr_to_objRef(processStack));
     }
@@ -4602,7 +4604,7 @@ void fetchProcessState(execState* es)
 {
     int j;
     processStack = orefOf(es->processObject, stackInProcess).ptr;
-    es->psb = addressOf(processStack);
+    es->psb = (objRef*)addressOf(processStack);
     j = intValueOf(orefOf(es->processObject, stackTopInProcess).val);
     es->pst = es->psb + (j - 1);
     linkPointer = intValueOf(orefOf(es->processObject, linkPtrInProcess).val);
@@ -4764,7 +4766,7 @@ void makeInitialImage(void)
 
 }
 
-void goDoIt(char* text)
+void goDoIt(const char* text)
 {
     encPtr method;
     encPtr process;
@@ -4898,7 +4900,7 @@ int main_2(int argc, char* argv[])
     return 0;
 }
 
-void compilError(char* selector, char* str1, char* str2)
+void compilError(const char* selector, const char* str1, const char* str2)
 {
 #ifdef L2_SMALLTALK_EMBEDDED
     fputs("Compiler error:\n\tMethod:\t", stderr);
@@ -4915,13 +4917,13 @@ void compilError(char* selector, char* str1, char* str2)
     parseOk = false;
 }
 
-void compilWarn(char* selector, char* str1, char* str2)
+void compilWarn(const char* selector, const char* str1, const char* str2)
 {
     (void)fprintf(stderr, "compiler warning: Method %s : %s %s\n",
         selector, str1, str2);
 }
 
-void sysError(char* s1, char* s2)
+void sysError(const char* s1, const char* s2)
 {
 #ifdef L2_SMALLTALK_EMBEDDED
     fputs(s1, stderr);
@@ -4934,7 +4936,7 @@ void sysError(char* s1, char* s2)
     (void)abort();
 }
 
-void sysWarn(char* s1, char* s2)
+void sysWarn(const char* s1, const char* s2)
 {
 #ifdef L2_SMALLTALK_EMBEDDED
     fputs(s1, stderr);
@@ -4977,7 +4979,7 @@ int main(int argc, char* argv[])
         FILE* tag;
         tag = fopen("snapshot", "wb");
         if (tag != NULL) {
-            reclaim(false);
+            //reclaim(false);
             if (ptrNe(encPtr_to_objRef(imageWrite(tag)), encPtr_to_objRef(trueObj)))
                 ans = 2;
             (void)fclose(tag);
